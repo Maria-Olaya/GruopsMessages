@@ -26,6 +26,8 @@ public class SecurityConfig {
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authorizeHttpRequests(auth -> auth
+                // Frontend — servido por Spring Boot
+                .requestMatchers("/", "/index.html", "/css/**", "/js/**").permitAll()
                 // Públicos — no requieren token
                 .requestMatchers("/api/users/register").permitAll()
                 .requestMatchers("/api/users/login").permitAll()

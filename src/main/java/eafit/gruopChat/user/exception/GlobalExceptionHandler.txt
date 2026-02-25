@@ -1,3 +1,5 @@
+/*
+NO SE USA ESTE ARCHIVO, PERO SE DEJA POR SI NECESITAMOS REVISAR ALGO
 package eafit.gruopChat.user.exception;
 
 import java.time.LocalDateTime;
