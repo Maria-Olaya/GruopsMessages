@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import eafit.gruopChat.group.dto.*;
@@ -21,12 +22,14 @@ public class GroupController {
         this.groupService = groupService;
     }
 
+    // ================= GRUPOS =================
+
     @PostMapping
     public ResponseEntity<GroupResponseDTO> createGroup(
-            @RequestParam Long creatorUserId,
+            @AuthenticationPrincipal Long userId,
             @Valid @RequestBody GroupRequestDTO request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(groupService.createGroup(creatorUserId, request));
+                .body(groupService.createGroup(userId, request));
     }
 
     @GetMapping("/{groupId}")
@@ -35,25 +38,27 @@ public class GroupController {
     }
 
     @GetMapping
-    public ResponseEntity<List<GroupResponseDTO>> getMyGroups(@RequestParam Long userId) {
+    public ResponseEntity<List<GroupResponseDTO>> getMyGroups(@AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(groupService.getGroupsByMember(userId));
     }
 
     @PutMapping("/{groupId}")
     public ResponseEntity<GroupResponseDTO> updateGroup(
             @PathVariable Long groupId,
-            @RequestParam Long requestingUserId,
+            @AuthenticationPrincipal Long userId,
             @Valid @RequestBody GroupRequestDTO request) {
-        return ResponseEntity.ok(groupService.updateGroup(groupId, requestingUserId, request));
+        return ResponseEntity.ok(groupService.updateGroup(groupId, userId, request));
     }
 
     @DeleteMapping("/{groupId}")
     public ResponseEntity<Void> deleteGroup(
             @PathVariable Long groupId,
-            @RequestParam Long requestingUserId) {
-        groupService.deleteGroup(groupId, requestingUserId);
+            @AuthenticationPrincipal Long userId) {
+        groupService.deleteGroup(groupId, userId);
         return ResponseEntity.noContent().build();
     }
+
+    // ================= MIEMBROS =================
 
     @GetMapping("/{groupId}/members")
     public ResponseEntity<List<GroupMemberResponseDTO>> getMembers(@PathVariable Long groupId) {
@@ -64,8 +69,8 @@ public class GroupController {
     public ResponseEntity<Void> removeMember(
             @PathVariable Long groupId,
             @PathVariable Long targetUserId,
-            @RequestParam Long adminUserId) {
-        groupService.removeMember(groupId, adminUserId, targetUserId);
+            @AuthenticationPrincipal Long userId) {
+        groupService.removeMember(groupId, userId, targetUserId);
         return ResponseEntity.noContent().build();
     }
 
@@ -73,50 +78,54 @@ public class GroupController {
     public ResponseEntity<Void> changeRole(
             @PathVariable Long groupId,
             @PathVariable Long targetUserId,
-            @RequestParam Long adminUserId,
+            @AuthenticationPrincipal Long userId,
             @RequestParam GroupRole role) {
-        groupService.changeGroupRole(groupId, adminUserId, targetUserId, role);
+        groupService.changeGroupRole(groupId, userId, targetUserId, role);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{groupId}/leave")
     public ResponseEntity<Void> leaveGroup(
             @PathVariable Long groupId,
-            @RequestParam Long userId) {
+            @AuthenticationPrincipal Long userId) {
         groupService.leaveGroup(groupId, userId);
         return ResponseEntity.noContent().build();
     }
 
+    // ================= INVITACIONES =================
+
     @PostMapping("/{groupId}/invitations")
     public ResponseEntity<InvitationResponseDTO> sendInvitation(
             @PathVariable Long groupId,
-            @RequestParam Long adminUserId,
+            @AuthenticationPrincipal Long userId,
             @RequestParam Long invitedUserId) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(groupService.sendInvitation(groupId, adminUserId, invitedUserId));
+                .body(groupService.sendInvitation(groupId, userId, invitedUserId));
     }
 
     @PatchMapping("/invitations/{invitationId}")
     public ResponseEntity<InvitationResponseDTO> respondToInvitation(
             @PathVariable Long invitationId,
-            @RequestParam Long userId,
+            @AuthenticationPrincipal Long userId,
             @RequestParam boolean accept) {
         return ResponseEntity.ok(groupService.respondToInvitation(invitationId, userId, accept));
     }
 
     @GetMapping("/invitations/pending")
     public ResponseEntity<List<InvitationResponseDTO>> getPendingInvitations(
-            @RequestParam Long userId) {
+            @AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(groupService.getPendingInvitations(userId));
     }
+
+    // ================= CANALES =================
 
     @PostMapping("/{groupId}/channels")
     public ResponseEntity<ChannelResponseDTO> createChannel(
             @PathVariable Long groupId,
-            @RequestParam Long adminUserId,
+            @AuthenticationPrincipal Long userId,
             @Valid @RequestBody ChannelRequestDTO request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(groupService.createChannel(groupId, adminUserId, request));
+                .body(groupService.createChannel(groupId, userId, request));
     }
 
     @GetMapping("/{groupId}/channels")
@@ -127,16 +136,16 @@ public class GroupController {
     @PutMapping("/channels/{channelId}")
     public ResponseEntity<ChannelResponseDTO> updateChannel(
             @PathVariable Long channelId,
-            @RequestParam Long adminUserId,
+            @AuthenticationPrincipal Long userId,
             @Valid @RequestBody ChannelRequestDTO request) {
-        return ResponseEntity.ok(groupService.updateChannel(channelId, adminUserId, request));
+        return ResponseEntity.ok(groupService.updateChannel(channelId, userId, request));
     }
 
     @DeleteMapping("/channels/{channelId}")
     public ResponseEntity<Void> deleteChannel(
             @PathVariable Long channelId,
-            @RequestParam Long adminUserId) {
-        groupService.deleteChannel(channelId, adminUserId);
+            @AuthenticationPrincipal Long userId) {
+        groupService.deleteChannel(channelId, userId);
         return ResponseEntity.noContent().build();
     }
 }

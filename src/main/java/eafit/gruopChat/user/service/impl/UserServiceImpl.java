@@ -8,6 +8,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import eafit.gruopChat.infrastructure.security.JwtService;
 import eafit.gruopChat.shared.enums.Role;
 import eafit.gruopChat.user.dto.*;
 import eafit.gruopChat.user.exception.*;
@@ -21,22 +22,23 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
     public UserServiceImpl(UserRepository userRepository,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           JwtService jwtService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
 
     // ================= REGISTER =================
 
     @Override
     public UserResponseDTO register(UserRequestDTO request) {
-
         if (userRepository.existsByEmail(request.email())) {
             throw new EmailAlreadyExistsException(request.email());
         }
-
         if (request.password() == null || request.password().isBlank()) {
             throw new IllegalArgumentException("Password is required");
         }
@@ -50,16 +52,13 @@ public class UserServiceImpl implements UserService {
         user.setPhoneNumber(request.phoneNumber());
         user.setProfilePictureUrl(request.profilePictureUrl());
 
-        User saved = userRepository.save(user);
-
-        return mapToDTO(saved);
+        return mapToDTO(userRepository.save(user));
     }
 
     // ================= LOGIN =================
 
     @Override
     public AuthResponseDTO login(LoginRequestDTO request) {
-
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(InvalidCredentialsException::new);
 
@@ -73,15 +72,15 @@ public class UserServiceImpl implements UserService {
 
         user.setLastLoginAt(LocalDateTime.now());
 
-        String token = null;
-        long expiresIn = 0;
+        // Generar token JWT real
+        String token = jwtService.generateToken(user);
 
         return new AuthResponseDTO(
                 token,
                 user.getUserId(),
                 user.getName(),
                 user.getRole(),
-                expiresIn
+                jwtService.getExpirationSeconds()
         );
     }
 
@@ -92,49 +91,36 @@ public class UserServiceImpl implements UserService {
     public UserResponseDTO getUserById(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
-
-        // Usuario deshabilitado → invisible, retorna 404
-        if (!user.isEnabled()) {
-            throw new UserNotFoundException(id);
-        }
-
+        if (!user.isEnabled()) throw new UserNotFoundException(id);
         return mapToDTO(user);
     }
 
     @Override
     @Transactional(readOnly = true)
     public UserResponseDTO getUserByEmail(String email) {
-        // Solo encuentra usuarios activos
         User user = userRepository.findByEmailAndEnabledTrue(email)
                 .orElseThrow(() -> new UserNotFoundException(email));
-
         return mapToDTO(user);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<UserResponseDTO> getAllUsers() {
-        // Solo retorna usuarios activos
         return userRepository.findByEnabledTrue()
-                .stream()
-                .map(this::mapToDTO)
-                .collect(Collectors.toList());
+                .stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<UserResponseDTO> getAllActiveUsers() {
         return userRepository.findByEnabledTrue()
-                .stream()
-                .map(this::mapToDTO)
-                .collect(Collectors.toList());
+                .stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
     // ================= UPDATE =================
 
     @Override
     public UserResponseDTO updateUser(Long id, UserRequestDTO request) {
-
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
 
@@ -147,7 +133,6 @@ public class UserServiceImpl implements UserService {
         user.setEmail(request.email());
         user.setPhoneNumber(request.phoneNumber());
         user.setProfilePictureUrl(request.profilePictureUrl());
-
         return mapToDTO(user);
     }
 
@@ -155,14 +140,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void changePassword(Long id, String oldPassword, String newPassword) {
-
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
-
         if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
             throw new InvalidCredentialsException();
         }
-
         user.setPasswordHash(passwordEncoder.encode(newPassword));
     }
 
@@ -172,7 +154,6 @@ public class UserServiceImpl implements UserService {
     public void disableUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
-
         user.setEnabled(false);
     }
 
@@ -180,7 +161,6 @@ public class UserServiceImpl implements UserService {
     public void enableUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
-
         user.setEnabled(true);
     }
 
@@ -190,7 +170,6 @@ public class UserServiceImpl implements UserService {
     public void changeRole(Long id, Role newRole) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
-
         user.setRole(newRole);
     }
 
@@ -200,22 +179,15 @@ public class UserServiceImpl implements UserService {
     public void deleteUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
-
-        user.setEnabled(false); // soft delete
+        user.setEnabled(false);
     }
 
     // ================= MAPPER =================
 
     private UserResponseDTO mapToDTO(User user) {
         return new UserResponseDTO(
-                user.getUserId(),
-                user.getName(),
-                user.getEmail(),
-                user.getRole(),
-                user.isEnabled(),
-                user.getCreatedAt(),
-                user.getProfilePictureUrl(),
-                user.getPhoneNumber()
-        );
+                user.getUserId(), user.getName(), user.getEmail(),
+                user.getRole(), user.isEnabled(), user.getCreatedAt(),
+                user.getProfilePictureUrl(), user.getPhoneNumber());
     }
 }

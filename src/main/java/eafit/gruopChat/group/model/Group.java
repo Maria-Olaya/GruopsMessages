@@ -81,4 +81,6 @@ public class Group {
 
     public List<GroupMember> getMembers() { return members; }
     public List<Channel> getChannels() { return channels; }
+    public List<GroupInvitation> getInvitations() { return invitations; }
+    
 }
