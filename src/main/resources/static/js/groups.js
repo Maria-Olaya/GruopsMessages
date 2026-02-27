@@ -68,7 +68,7 @@ async function selectGroup(groupId) {
 
   // Highlight in sidebar
   renderGroupsList(state.groups);
-
+  subscribePresence(data.groupId);
   // Reset chat area
   document.getElementById('chat-area').innerHTML = `
     <div class="chat-empty">
@@ -232,7 +232,7 @@ function renderMembersList(members) {
       }
     }
 
-    return `<div class="member-item">
+    return `<div class="member-item" data-user-id="${m.userId}">
       <div class="mi-avatar ${avColor(m.name)}">${getInitials(m.name)}</div>
       <div class="mi-info">
         <div class="mi-name">${escHtml(m.name)}${isMe ? ' <span style="color:var(--text3)">(tú)</span>' : ''}</div>

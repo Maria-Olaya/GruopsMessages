@@ -19,4 +19,6 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
     List<GroupMember> findByGroupGroupIdAndRole(Long groupId, GroupRole role);
 
     void deleteByGroupGroupIdAndUserUserId(Long groupId, Long userId);
+    // Necesario para Presence: todos los grupos donde está un usuario
+    List<GroupMember> findByUserUserId(Long userId);
 }

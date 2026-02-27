@@ -891,3 +891,15 @@ a{color:inherit;text-decoration:none}
 .edit-btn-save:hover {
   opacity: 0.85;
 }
+/* ── Presence dots ── */
+.mi-avatar { position: relative; }
+.presence-dot {
+  position: absolute;
+  bottom: -1px; right: -1px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--bg2);
+  pointer-events: none;
+}
+.presence-dot.online  { background: #4ade80; }
+.presence-dot.offline { background: #6b7280; }
