@@ -1,12 +1,14 @@
-// ===================== GRUPOS =====================
-// Depende de: api.js (state, apiCall, showToast, getInitials, getAvatarColor, openModal, closeModal)
+// ===================== SIDEBAR PANELS =====================
+function showPanel(panel) {
+  document.getElementById('panel-groups').classList.toggle('hidden', panel !== 'groups');
+  document.getElementById('panel-invitations').classList.toggle('hidden', panel !== 'invitations');
+  document.getElementById('nav-groups').classList.toggle('active', panel === 'groups');
+  document.getElementById('nav-invitations').classList.toggle('active', panel !== 'groups');
+  if (panel === 'invitations') loadInvitations();
+}
 
-// ---- Cargar y renderizar ----
-
+// ===================== GROUPS LIST =====================
 async function loadGroups() {
-  // GET /api/groups — retorna List<GroupResponseDTO>
-  // GroupResponseDTO: { groupId, name, description, createdByUserId, createdByName,
-  //                     isPrivate, memberCount, channelCount, createdAt }
   const { ok, data } = await apiCall('GET', '/groups');
   if (!ok) return;
   state.groups = Array.isArray(data) ? data : [];
@@ -14,233 +16,343 @@ async function loadGroups() {
 }
 
 function renderGroupsList(groups) {
-  const container = document.getElementById('groups-list');
-
+  const el = document.getElementById('groups-list');
   if (!groups.length) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">💬</div>
-        <p>Aún no perteneces a ningún grupo.<br>¡Crea uno o espera una invitación!</p>
-      </div>`;
+    el.innerHTML = `<div class="empty-state"><p>No perteneces a ningún grupo.<br>¡Crea uno o espera una invitación!</p></div>`;
+    return;
+  }
+  el.innerHTML = groups.map(g => `
+    <div class="group-item ${state.currentGroup?.groupId === g.groupId ? 'active' : ''}"
+         onclick="selectGroup(${g.groupId})">
+      <div class="gi-avatar ${avColor(g.name)}">${getInitials(g.name)}</div>
+      <div class="gi-info">
+        <div class="gi-name">${escHtml(g.name)}${g.isPrivate ? '<span class="tag-private">privado</span>' : ''}</div>
+        <div class="gi-sub">${g.memberCount||1} miembros · ${g.channelCount||0} canales</div>
+      </div>
+    </div>`).join('');
+}
+
+function filterGroups(q) {
+  renderGroupsList(state.groups.filter(g => g.name.toLowerCase().includes(q.toLowerCase())));
+}
+
+// ===================== SELECT GROUP =====================
+async function selectGroup(groupId) {
+  const { ok, data } = await apiCall('GET', `/groups/${groupId}`);
+  if (!ok) return toast('Error al cargar el grupo', 'error');
+  state.currentGroup = data;
+
+  // Determine current user role in this group
+  await loadMembers();
+
+  // Header
+  const av = document.getElementById('gv-avatar');
+  av.textContent = getInitials(data.name);
+  av.className = `group-avatar-lg ${avColor(data.name)}`;
+  document.getElementById('gv-name').textContent = data.name + (data.isPrivate ? ' 🔒' : '');
+  document.getElementById('gv-meta').textContent =
+    `${data.memberCount||1} miembros · ${data.channelCount||0} canales · creado por ${data.createdByName}`;
+
+  // Header actions based on role
+  renderGroupActions();
+
+  // Show group view
+  document.getElementById('welcome-state').classList.add('hidden');
+  document.getElementById('group-view').classList.remove('hidden');
+
+  // Load channels + update add-channel button visibility
+  await loadChannels();
+
+  // Show/hide "add channel" button
+  document.getElementById('btn-add-channel').classList.toggle('hidden', state.currentRole !== 'ADMIN');
+
+  // Highlight in sidebar
+  renderGroupsList(state.groups);
+
+  // Reset chat area
+  document.getElementById('chat-area').innerHTML = `
+    <div class="chat-empty">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <p>Selecciona un canal para chatear</p>
+    </div>`;
+}
+
+function renderGroupActions() {
+  const el = document.getElementById('gv-actions');
+  const isAdmin = state.currentRole === 'ADMIN';
+  const isCreator = state.currentGroup?.createdByUserId === state.userId;
+
+  let html = '';
+
+  if (isAdmin) {
+    html += `<button class="header-btn" onclick="openInviteModal()" title="Invitar usuario">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Invitar
+    </button>`;
+    html += `<button class="header-btn" onclick="openEditGroupModal()" title="Editar grupo">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Editar
+    </button>`;
+  }
+
+  if (!isCreator) {
+    html += `<button class="header-btn" onclick="leaveGroup()" title="Salir del grupo">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Salir
+    </button>`;
+  }
+
+  if (isCreator) {
+    html += `<button class="header-btn danger" onclick="openDeleteGroupModal()" title="Eliminar grupo">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      Eliminar
+    </button>`;
+  }
+
+  el.innerHTML = html;
+}
+
+// ===================== CREATE GROUP =====================
+async function createGroup() {
+  const name = document.getElementById('ng-name').value.trim();
+  const desc = document.getElementById('ng-desc').value.trim();
+  const priv = document.getElementById('ng-private').checked;
+  if (!name) return toast('El nombre del grupo es requerido', 'warn');
+
+  const { ok, data } = await apiCall('POST', '/groups', { name, description: desc, isPrivate: priv });
+  if (!ok) return toast(data?.message || 'Error al crear el grupo', 'error');
+
+  closeModal('modal-create-group');
+  toast(`Grupo "${name}" creado`, 'success');
+  await loadGroups();
+  selectGroup(data.groupId);
+}
+
+// ===================== EDIT GROUP =====================
+function openEditGroupModal() {
+  const g = state.currentGroup;
+  document.getElementById('eg-name').value = g.name;
+  document.getElementById('eg-desc').value = g.description || '';
+  document.getElementById('eg-private').checked = g.isPrivate;
+  openModal('modal-edit-group');
+}
+async function saveEditGroup() {
+  const name = document.getElementById('eg-name').value.trim();
+  const desc = document.getElementById('eg-desc').value.trim();
+  const priv = document.getElementById('eg-private').checked;
+  if (!name) return toast('El nombre es requerido', 'warn');
+
+  const { ok, data } = await apiCall(
+    'PUT', `/groups/${state.currentGroup.groupId}`,
+    { name, description: desc, isPrivate: priv }
+  );
+  if (!ok) return toast(data?.message || 'Error al guardar', 'error');
+
+  state.currentGroup = data;
+  closeModal('modal-edit-group');
+  toast('Grupo actualizado', 'success');
+  document.getElementById('gv-name').textContent = data.name + (data.isPrivate ? ' 🔒' : '');
+  await loadGroups();
+}
+
+// ===================== DELETE GROUP =====================
+function openDeleteGroupModal() {
+  document.getElementById('dg-name').textContent = state.currentGroup.name;
+  openModal('modal-delete-group');
+}
+async function confirmDeleteGroup() {
+  const { ok, data } = await apiCall('DELETE', `/groups/${state.currentGroup.groupId}`);
+  if (!ok) return toast(data?.message || 'Error al eliminar', 'error');
+
+  closeModal('modal-delete-group');
+  toast('Grupo eliminado', 'info');
+  state.currentGroup = null;
+  document.getElementById('group-view').classList.add('hidden');
+  document.getElementById('welcome-state').classList.remove('hidden');
+  await loadGroups();
+}
+
+// ===================== LEAVE GROUP =====================
+async function leaveGroup() {
+  if (!confirm(`¿Salir del grupo "${state.currentGroup.name}"?`)) return;
+  const { ok, data } = await apiCall('POST', `/groups/${state.currentGroup.groupId}/leave`);
+  if (!ok) return toast(data?.message || 'No puedes salir de este grupo', 'error');
+
+  toast('Saliste del grupo', 'info');
+  state.currentGroup = null;
+  document.getElementById('group-view').classList.add('hidden');
+  document.getElementById('welcome-state').classList.remove('hidden');
+  await loadGroups();
+}
+
+// ===================== MEMBERS =====================
+async function loadMembers() {
+  if (!state.currentGroup) return;
+  const { ok, data } = await apiCall('GET', `/groups/${state.currentGroup.groupId}/members`);
+  if (!ok) return;
+
+  state.members = data;
+
+  // Find current user's role
+  const me = data.find(m => m.userId === state.userId);
+  state.currentRole = me?.role || 'MEMBER';
+  state.currentCreator = state.currentGroup.createdByUserId;
+
+  renderMembersList(data);
+}
+
+function renderMembersList(members) {
+  const el = document.getElementById('members-list');
+  if (!members.length) {
+    el.innerHTML = '<div class="empty-state"><p>Sin miembros</p></div>';
     return;
   }
 
-  container.innerHTML = groups.map(g => {
-    const members  = g.memberCount  || 1;
-    const channels = g.channelCount || 0;
-    const isActive = state.currentGroup?.groupId === g.groupId;
-    return `
-      <div class="group-item ${isActive ? 'active' : ''}" onclick="selectGroup(${g.groupId})">
-        <div class="avatar ${getAvatarColor(g.name)}">${getInitials(g.name)}</div>
-        <div class="group-info">
-          <div class="group-name">${g.name}</div>
-          <div class="group-sub">
-            ${members} miembro${members !== 1 ? 's' : ''} · ${channels} canal${channels !== 1 ? 'es' : ''}
-          </div>
-        </div>
-        ${g.isPrivate ? '<span class="tag-private">🔒</span>' : ''}
-      </div>`;
+  const isAdmin = state.currentRole === 'ADMIN';
+  const creatorId = state.currentGroup?.createdByUserId;
+
+  el.innerHTML = members.map(m => {
+    const isMe = m.userId === state.userId;
+    const isCreatorMember = m.userId === creatorId;
+    const canManage = isAdmin && !isMe;
+
+    let actions = '';
+    if (canManage) {
+      const newRole = m.role === 'ADMIN' ? 'MEMBER' : 'ADMIN';
+      const roleLabel = m.role === 'ADMIN' ? '↓ Quitar admin' : '↑ Hacer admin';
+      actions += `<button class="mi-btn" title="${roleLabel}" onclick="changeMemberRole(${m.userId}, '${newRole}')">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          ${m.role === 'ADMIN' ? '<polyline points="18 15 12 9 6 15"/>' : '<polyline points="6 9 12 15 18 9"/>'}
+        </svg>
+      </button>`;
+      if (!isCreatorMember) {
+        actions += `<button class="mi-btn danger" title="Expulsar" onclick="openRemoveMemberModal(${m.userId}, '${escHtml(m.name)}')">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>`;
+      }
+    }
+
+    return `<div class="member-item">
+      <div class="mi-avatar ${avColor(m.name)}">${getInitials(m.name)}</div>
+      <div class="mi-info">
+        <div class="mi-name">${escHtml(m.name)}${isMe ? ' <span style="color:var(--text3)">(tú)</span>' : ''}</div>
+        <span class="mi-role ${m.role === 'ADMIN' ? 'admin' : 'member'}">${m.role}</span>
+      </div>
+      ${actions ? `<div class="mi-actions">${actions}</div>` : ''}
+    </div>`;
   }).join('');
 }
 
-function filterGroups(query) {
-  const filtered = state.groups.filter(g =>
-    g.name.toLowerCase().includes(query.toLowerCase())
-  );
-  renderGroupsList(filtered);
+// Remove member
+let _removeMemberId = null;
+function openRemoveMemberModal(userId, name) {
+  _removeMemberId = userId;
+  document.getElementById('rm-member-name').textContent = name;
+  openModal('modal-remove-member');
 }
+async function confirmRemoveMember() {
+  if (!_removeMemberId) return;
+  const { ok, data } = await apiCall('DELETE', `/groups/${state.currentGroup.groupId}/members/${_removeMemberId}`);
+  if (!ok) return toast(data?.message || 'Error al expulsar', 'error');
 
-// ---- Seleccionar un grupo ----
+  closeModal('modal-remove-member');
+  toast('Miembro expulsado', 'info');
+  _removeMemberId = null;
+  await loadMembers();
 
-async function selectGroup(groupId) {
-  // GET /api/groups/{groupId} — retorna GroupResponseDTO
-  const { ok, data } = await apiCall('GET', `/groups/${groupId}`);
-  if (!ok) return showToast('Error al cargar el grupo', 'error');
-
-  state.currentGroup = data;
-
-  // Header del panel
-  const av = document.getElementById('gv-avatar');
-  av.textContent = getInitials(data.name);
-  av.className   = `avatar ${getAvatarColor(data.name)}`;
-
-  document.getElementById('gv-name').textContent = data.name + (data.isPrivate ? ' 🔒' : '');
-  document.getElementById('gv-meta').textContent =
-    `${data.memberCount || 1} miembros · ${data.channelCount || 0} canales`;
-
-  // Mostrar la vista de grupo
-  document.getElementById('welcome-state').style.display = 'none';
-  document.getElementById('group-view').classList.add('active');
-
-  // Resetear a pestaña miembros
-  document.querySelectorAll('.group-tab').forEach((t, i) => t.classList.toggle('active', i === 0));
-  state.currentGroupTab = 'members';
-  loadMembers();
-
-  // Resaltar en sidebar
-  renderGroupsList(state.groups);
-}
-
-function switchGroupTab(tab, el) {
-  state.currentGroupTab = tab;
-  document.querySelectorAll('.group-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  if (tab === 'members') loadMembers();
-  else                   loadChannels();
-}
-
-// ---- Crear grupo ----
-
-async function createGroup() {
-  const name  = document.getElementById('new-group-name').value.trim();
-  const desc  = document.getElementById('new-group-desc').value.trim();
-  const priv  = document.getElementById('new-group-private').checked;
-
-  if (!name) return showToast('El nombre del grupo es requerido', 'warn');
-
-  // POST /api/groups — body: GroupRequestDTO { name, description, isPrivate }
-  // retorna GroupResponseDTO con 201
-  const { ok, data } = await apiCall('POST', '/groups', { name, description: desc, isPrivate: priv });
-  if (!ok) return showToast(data?.message || 'Error al crear el grupo', 'error');
-
-  closeModal('modal-create-group');
-  showToast(`Grupo "${name}" creado`, 'success');
-  await loadGroups();
-  selectGroup(data.groupId); // abrir el grupo recién creado
-}
-
-// ---- Salir del grupo ----
-
-async function leaveCurrentGroup() {
-  if (!state.currentGroup) return;
-  if (!confirm(`¿Salir del grupo "${state.currentGroup.name}"?`)) return;
-
-  // POST /api/groups/{groupId}/leave — userId del token JWT
-  const { ok, data } = await apiCall('POST', `/groups/${state.currentGroup.groupId}/leave`);
-  if (!ok) return showToast(data?.message || 'No puedes salir de este grupo', 'error');
-
-  showToast('Saliste del grupo', 'info');
-  state.currentGroup = null;
-  document.getElementById('group-view').classList.remove('active');
-  document.getElementById('welcome-state').style.display = '';
-  loadGroups();
-}
-
-// ---- Miembros ----
-
-async function loadMembers() {
-  if (!state.currentGroup) return;
-
-  // GET /api/groups/{groupId}/members
-  // retorna List<GroupMemberResponseDTO>:
-  // { userId, userName, userEmail, role (ADMIN|MEMBER), joinedAt }
-  const { ok, data } = await apiCall('GET', `/groups/${state.currentGroup.groupId}/members`);
-  const content = document.getElementById('group-content');
-
-  if (!ok) {
-    content.innerHTML = `<div class="empty-state"><p>Error al cargar los miembros</p></div>`;
-    return;
-  }
-
-  content.innerHTML = `
-    <div class="section-title">Miembros del grupo</div>
-    ${data.map(m => `
-      <div class="member-item">
-        <div class="avatar avatar-sm ${getAvatarColor(m.name || 'U')}">
-          ${getInitials(m.name || 'U')}
-        </div>
-        <div>
-          <div style="font-size:14px;font-weight:500">${m.name || 'Usuario'}</div>
-          <div style="font-size:12px;color:var(--text2)">${m.userEmail || ''}</div>
-        </div>
-        <span class="member-role ${m.role === 'ADMIN' ? 'role-admin' : 'role-member'}">${m.role}</span>
-      </div>
-    `).join('')}`;
-}
-
-// ---- Canales ----
-
-async function loadChannels() {
-  if (!state.currentGroup) return;
-
-  // GET /api/groups/{groupId}/channels
-  // retorna List<ChannelResponseDTO>:
-  // { channelId, groupId, name, description, createdByUserId, createdByName, createdAt }
-  const { ok, data } = await apiCall('GET', `/groups/${state.currentGroup.groupId}/channels`);
-  const content = document.getElementById('group-content');
-
-  const channelsHtml = (ok && data.length)
-    ? data.map(c => `
-        <div class="channel-item">
-          <div class="channel-hash">#</div>
-          <div>
-            <div style="font-size:14px;font-weight:500">${c.name}</div>
-            <div style="font-size:12px;color:var(--text2)">${c.description || 'Sin descripción'}</div>
-          </div>
-        </div>`).join('')
-    : `<div class="empty-state"><div class="empty-icon">📢</div><p>Aún no hay canales en este grupo.</p></div>`;
-
-  content.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <div class="section-title" style="margin:0">Canales</div>
-      <button class="btn-modal-primary" style="padding:7px 14px;font-size:12px;border-radius:8px"
-              onclick="openModal('modal-create-channel')">+ Nuevo canal</button>
-    </div>
-    ${channelsHtml}`;
-}
-
-async function createChannel() {
-  const name = document.getElementById('new-channel-name').value.trim();
-  const desc = document.getElementById('new-channel-desc').value.trim();
-
-  if (!name) return showToast('El nombre del canal es requerido', 'warn');
-
-  // POST /api/groups/{groupId}/channels — body: ChannelRequestDTO { name, description }
-  // retorna ChannelResponseDTO con 201
-  const { ok, data } = await apiCall(
-    'POST',
-    `/groups/${state.currentGroup.groupId}/channels`,
-    { name, description: desc }
-  );
-  if (!ok) return showToast(data?.message || 'Error al crear el canal', 'error');
-
-  closeModal('modal-create-channel');
-  showToast(`Canal #${name} creado`, 'success');
-  loadChannels();
-
-  // Actualizar conteo en header
+  // Update group meta
   const meta = await apiCall('GET', `/groups/${state.currentGroup.groupId}`);
   if (meta.ok) {
     state.currentGroup = meta.data;
     document.getElementById('gv-meta').textContent =
-      `${meta.data.memberCount || 1} miembros · ${meta.data.channelCount || 0} canales`;
+      `${meta.data.memberCount||1} miembros · ${meta.data.channelCount||0} canales · creado por ${meta.data.createdByName}`;
+    await loadGroups();
   }
 }
 
-// ---- Invitar usuario ----
-
-function openInviteModal() {
-  if (!state.currentGroup) return;
-  openModal('modal-invite');
+// Change member role
+async function changeMemberRole(userId, newRole) {
+  const { ok, data } = await apiCall(
+    'PATCH',
+    `/groups/${state.currentGroup.groupId}/members/${userId}/role?role=${newRole}`
+  );
+  if (!ok) return toast(data?.message || 'Error al cambiar rol', 'error');
+  toast(`Rol cambiado a ${newRole}`, 'success');
+  await loadMembers();
 }
 
+// ===================== INVITE =====================
+function openInviteModal() {
+  openModal('modal-invite');
+}
 async function sendInvitation() {
   const email = document.getElementById('invite-email').value.trim();
-  if (!email) return showToast('Ingresa el email del usuario', 'warn');
+  if (!email) return toast('Ingresa el email del usuario', 'warn');
 
-  // 1. Buscar userId por email — GET /api/users/email/{email}
-  // retorna UserResponseDTO: { userId, name, email, ... }
   const { ok: uok, data: udata } = await apiCall('GET', `/users/email/${encodeURIComponent(email)}`);
-  if (!uok) return showToast('Usuario no encontrado', 'error');
+  if (!uok) return toast('Usuario no encontrado', 'error');
 
-  // 2. Enviar invitación — POST /api/groups/{groupId}/invitations?invitedUserId={id}
-  // retorna InvitationResponseDTO con 201
   const { ok, data } = await apiCall(
     'POST',
     `/groups/${state.currentGroup.groupId}/invitations?invitedUserId=${udata.userId}`
   );
-  if (!ok) return showToast(data?.message || 'Error al enviar la invitación', 'error');
+  if (!ok) return toast(data?.message || 'Error al enviar invitación', 'error');
 
   closeModal('modal-invite');
-  showToast(`Invitación enviada a ${email}`, 'success');
+  toast(`Invitación enviada a ${email}`, 'success');
+}
+
+// ===================== INVITATIONS =====================
+let _invPollTimer = null;
+function pollInvitations() {
+  loadInvitations();
+  _invPollTimer = setInterval(() => { if (state.token) loadInvitations(); }, 30000);
+}
+
+async function loadInvitations() {
+  const { ok, data } = await apiCall('GET', '/groups/invitations/pending');
+  if (!ok) return;
+  const list = Array.isArray(data) ? data : [];
+
+  const badge = document.getElementById('inv-badge');
+  if (list.length > 0) {
+    badge.textContent = list.length;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+  renderInvitationsList(list);
+}
+
+function renderInvitationsList(list) {
+  const el = document.getElementById('invitations-list');
+  if (!list.length) {
+    el.innerHTML = '<div class="empty-state"><p>No tienes invitaciones pendientes</p></div>';
+    return;
+  }
+  el.innerHTML = list.map(inv => `
+    <div class="inv-item">
+      <div class="inv-group">${escHtml(inv.groupName || 'Grupo')}</div>
+      <div class="inv-by">Invitado por ${escHtml(inv.invitedByName || 'Admin')}</div>
+      <div class="inv-actions">
+        <button class="btn-accept" onclick="respondInvitation(${inv.invitationId}, true)">✓ Aceptar</button>
+        <button class="btn-reject" onclick="respondInvitation(${inv.invitationId}, false)">✗ Rechazar</button>
+      </div>
+    </div>`).join('');
+}
+
+async function respondInvitation(id, accept) {
+  const { ok, data } = await apiCall('PATCH', `/groups/invitations/${id}?accept=${accept}`);
+  if (!ok) return toast(data?.message || 'Error al responder', 'error');
+
+  toast(accept ? '¡Invitación aceptada!' : 'Invitación rechazada', accept ? 'success' : 'info');
+  await loadInvitations();
+  if (accept) await loadGroups();
+}
+
+// ===================== HTML ESCAPE =====================
+function escHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }

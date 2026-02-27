@@ -1,16 +1,9 @@
-// ===================== APP — INICIALIZACIÓN =====================
-// Este archivo se carga de último.
-// Aquí van solo las cosas que necesitan que el DOM esté listo.
-
+// ===================== INIT =====================
 document.addEventListener('DOMContentLoaded', () => {
+  // Wire up profile modal button
+  document.querySelector('[onclick="openModal(\'modal-profile\')"]')?.setAttribute('onclick', 'openProfileModal()');
 
-  // Refrescar invitaciones cada 30 segundos (mientras hay sesión activa)
-  setInterval(() => {
-    if (state.token) loadPendingInvitations();
-  }, 30_000);
-
-  // Focus automático en el campo email al cargar
+  // Auto focus
   const emailInput = document.getElementById('login-email');
   if (emailInput) emailInput.focus();
-
 });

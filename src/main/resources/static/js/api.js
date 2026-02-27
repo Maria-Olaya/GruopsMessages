@@ -1,23 +1,53 @@
 // ===================== ESTADO GLOBAL =====================
 const state = {
-  token:               null,
-  userId:              null,
-  userName:            null,
-  userEmail:           null,
-  groups:              [],
-  currentGroup:        null,
-  currentGroupTab:     'members',
-  pendingInvitations:  [],
+  token:          null,
+  userId:         null,
+  userName:       null,
+  userEmail:      null,
+  userRole:       null,
+  groups:         [],
+  currentGroup:   null,
+  currentRole:    null,
+  currentCreator: null,
+  members:        [],
 };
 
+// ===================== PERSISTENCIA DE SESIÓN =====================
+// Restaurar sesión desde sessionStorage al cargar la página
+// sessionStorage sobrevive el reload pero se limpia al cerrar la pestaña
+(function restoreSession() {
+  const saved = sessionStorage.getItem('gruopChat_session');
+  if (!saved) return;
+  try {
+    const s = JSON.parse(saved);
+    state.token     = s.token     || null;
+    state.userId    = s.userId    || null;
+    state.userName  = s.userName  || null;
+    state.userEmail = s.userEmail || null;
+    state.userRole  = s.userRole  || null;
+  } catch(_) {
+    sessionStorage.removeItem('gruopChat_session');
+  }
+})();
+
+function saveSession() {
+  sessionStorage.setItem('gruopChat_session', JSON.stringify({
+    token:     state.token,
+    userId:    state.userId,
+    userName:  state.userName,
+    userEmail: state.userEmail,
+    userRole:  state.userRole,
+  }));
+}
+
+function clearSession() {
+  sessionStorage.removeItem('gruopChat_session');
+}
+
 // ===================== FETCH HELPER =====================
-// Todas las llamadas al API pasan por aquí.
-// Retorna { ok, status, data } siempre — nunca lanza excepciones.
 async function apiCall(method, path, body = null, auth = true) {
   const headers = { 'Content-Type': 'application/json' };
-  if (auth && state.token) {
-    headers['Authorization'] = `Bearer ${state.token}`;
-  }
+  if (auth && state.token) headers['Authorization'] = `Bearer ${state.token}`;
 
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
@@ -26,68 +56,70 @@ async function apiCall(method, path, body = null, auth = true) {
     const res  = await fetch('/api' + path, opts);
     const text = await res.text();
     let data = null;
-    try { data = JSON.parse(text); } catch (_) {}
+    try { data = JSON.parse(text); } catch(_) {}
+
+    // Si el token expiró, limpiar sesión y volver al login
+    if (res.status === 401) {
+      clearSession();
+      Object.assign(state, { token: null, userId: null, userName: null, userEmail: null });
+    }
+
     return { ok: res.ok, status: res.status, data };
-  } catch (err) {
-    // Error de red (backend caído, CORS, etc.)
-    console.error('[API] Error de red:', err);
+  } catch(err) {
+    console.error('[API] Network error:', err);
     return { ok: false, status: 0, data: { message: 'No se pudo conectar con el servidor' } };
   }
 }
 
-// ===================== UTILS =====================
-
-// Genera iniciales a partir de un nombre
+// ===================== AVATAR UTILS =====================
 function getInitials(name) {
   if (!name) return '?';
-  const parts = name.trim().split(' ');
-  return parts.length >= 2
-    ? (parts[0][0] + parts[1][0]).toUpperCase()
-    : name.slice(0, 2).toUpperCase();
+  const p = name.trim().split(' ');
+  return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : name.slice(0,2).toUpperCase();
+}
+function avColor(str) {
+  let h = 0;
+  for (const c of (str||'')) h = c.charCodeAt(0) + ((h<<5) - h);
+  return 'av-' + (Math.abs(h) % 6);
 }
 
-// Asigna un color de avatar determinístico según el nombre
-function getAvatarColor(str) {
-  const colors = ['av-blue', 'av-purple', 'av-green', 'av-orange', 'av-pink', 'av-teal'];
-  let hash = 0;
-  for (const c of (str || '')) hash = c.charCodeAt(0) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
-}
-
-// ===================== TOAST =====================
-function showToast(msg, type = 'info') {
-  const icons = { success: '✅', error: '❌', info: '💬', warn: '⚠️' };
+// ===================== TOASTS =====================
+function toast(msg, type = 'info') {
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ️'}</span><span>${msg}</span>`;
+  el.innerHTML = `<div class="toast-dot"></div><span>${msg}</span>`;
   document.getElementById('toast-container').appendChild(el);
-  setTimeout(() => el.remove(), 3500);
+  setTimeout(() => {
+    el.style.animation = 'none';
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(20px)';
+    el.style.transition = 'all 0.2s ease';
+    setTimeout(() => el.remove(), 200);
+  }, 3200);
 }
 
 // ===================== MODALES =====================
 function openModal(id) {
-  document.getElementById(id).classList.add('open');
+  document.getElementById(id).classList.remove('hidden');
 }
 function closeModal(id) {
-  document.getElementById(id).classList.remove('open');
-  // Limpiar inputs del modal
-  document.querySelectorAll(`#${id} input, #${id} textarea`).forEach(el => {
-    if (el.type !== 'checkbox') el.value = '';
-  });
+  document.getElementById(id).classList.add('hidden');
+  document.querySelectorAll(`#${id} input:not([type=checkbox]), #${id} textarea`)
+    .forEach(el => el.value = '');
 }
-
-// Cerrar modal al hacer click fuera
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.modal-overlay').forEach(m => {
     m.addEventListener('click', e => {
-      if (e.target === m) m.classList.remove('open');
+      if (e.target === m) m.classList.add('hidden');
     });
   });
-
-  // Cerrar con ESC
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+      document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(m => m.classList.add('hidden'));
+      document.getElementById('msg-context-menu')?.classList.add('hidden');
     }
+  });
+  document.addEventListener('click', () => {
+    document.getElementById('msg-context-menu')?.classList.add('hidden');
   });
 });

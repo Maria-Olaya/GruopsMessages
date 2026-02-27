@@ -7,11 +7,29 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import eafit.gruopChat.group.dto.*;
-import eafit.gruopChat.group.exception.*;
-import eafit.gruopChat.group.model.*;
-import eafit.gruopChat.group.repository.*;
+import eafit.gruopChat.group.dto.ChannelRequestDTO;
+import eafit.gruopChat.group.dto.ChannelResponseDTO;
+import eafit.gruopChat.group.dto.GroupMemberResponseDTO;
+import eafit.gruopChat.group.dto.GroupRequestDTO;
+import eafit.gruopChat.group.dto.GroupResponseDTO;
+import eafit.gruopChat.group.dto.InvitationResponseDTO;
+import eafit.gruopChat.group.exception.AlreadyMemberException;
+import eafit.gruopChat.group.exception.ChannelNotFoundException;
+import eafit.gruopChat.group.exception.DuplicateChannelNameException;
+import eafit.gruopChat.group.exception.GroupNotFoundException;
+import eafit.gruopChat.group.exception.InvitationNotFoundException;
+import eafit.gruopChat.group.exception.NotGroupAdminException;
+import eafit.gruopChat.group.exception.NotMemberException;
+import eafit.gruopChat.group.model.Channel;
+import eafit.gruopChat.group.model.Group;
+import eafit.gruopChat.group.model.GroupInvitation;
+import eafit.gruopChat.group.model.GroupMember;
+import eafit.gruopChat.group.repository.ChannelRepository;
+import eafit.gruopChat.group.repository.GroupInvitationRepository;
+import eafit.gruopChat.group.repository.GroupMemberRepository;
+import eafit.gruopChat.group.repository.GroupRepository;
 import eafit.gruopChat.group.service.GroupService;
+import eafit.gruopChat.messaging.repository.MessageRepository;
 import eafit.gruopChat.shared.enums.GroupRole;
 import eafit.gruopChat.shared.enums.InvitationStatus;
 import eafit.gruopChat.user.exception.UserNotFoundException;
@@ -27,17 +45,20 @@ public class GroupServiceImpl implements GroupService {
     private final ChannelRepository channelRepository;
     private final GroupInvitationRepository invitationRepository;
     private final UserRepository userRepository;
+    private final MessageRepository messageRepository;
 
     public GroupServiceImpl(GroupRepository groupRepository,
                             GroupMemberRepository memberRepository,
                             ChannelRepository channelRepository,
                             GroupInvitationRepository invitationRepository,
-                            UserRepository userRepository) {
+                            UserRepository userRepository,
+                            MessageRepository messageRepository) {
         this.groupRepository = groupRepository;
         this.memberRepository = memberRepository;
         this.channelRepository = channelRepository;
         this.invitationRepository = invitationRepository;
         this.userRepository = userRepository;
+        this.messageRepository  = messageRepository; 
     }
 
     // ===================== GRUPOS =====================
@@ -92,6 +113,7 @@ public class GroupServiceImpl implements GroupService {
         if (!group.getCreatedBy().getUserId().equals(requestingUserId)) {
             throw new NotGroupAdminException();
         }
+        messageRepository.deleteByGroupId(groupId); 
         groupRepository.delete(group);
     }
 
@@ -241,7 +263,10 @@ public class GroupServiceImpl implements GroupService {
         Channel channel = channelRepository.findById(channelId)
                 .orElseThrow(() -> new ChannelNotFoundException(channelId));
         assertAdmin(channel.getGroup().getGroupId(), adminUserId);
-        channelRepository.delete(channel);
+        
+        messageRepository.deleteByChannelId(channelId);  // ← línea nueva
+        
+        channelRepository.delete(channel);               // ← esta ya existía
     }
 
     // ===================== HELPERS =====================
