@@ -90,24 +90,47 @@ function sendMessage() {
   input.value = '';
 }
 
-function handleFile(event) {
+async function handleFile(event) {
   const file = event.target.files[0];
   if (!file || !chatCtx) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    const isImg = file.type.startsWith('image/');
-    stompClient.send('/app/chat.send', {}, JSON.stringify({
-      groupId:   chatCtx.groupId,
-      channelId: chatCtx.type === 'channel' ? chatCtx.id : null,
-      type:      isImg ? 'IMAGE' : 'FILE',
-      content:   null,
-      fileUrl:   reader.result,
-      fileName:  file.name,
-    }));
-  };
-  reader.readAsDataURL(file);
   event.target.value = '';
+
+  if (file.size > 10 * 1024 * 1024) {
+    return toast('El archivo supera el límite de 10 MB', 'error');
+  }
+
+  toast('Subiendo archivo...', 'info');
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  let uploadData;
+  try {
+    const res = await fetch('/api/files/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${state.token}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return toast(err.message || 'Error al subir el archivo', 'error');
+    }
+    uploadData = await res.json();
+  } catch(e) {
+    return toast('No se pudo conectar con el servidor', 'error');
+  }
+
+  const isImg = file.type.startsWith('image/');
+  stompClient.send('/app/chat.send', {}, JSON.stringify({
+    groupId:   chatCtx.groupId,
+    channelId: chatCtx.type === 'channel' ? chatCtx.id : null,
+    type:      isImg ? 'IMAGE' : 'FILE',
+    content:   null,
+    fileUrl:   uploadData.fileUrl,
+    fileName:  uploadData.fileName,
+  }));
 }
+
 
 // ===================== DELETE MESSAGE =====================
 async function deleteMessage(messageId) {

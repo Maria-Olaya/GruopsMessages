@@ -27,7 +27,7 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 // Frontend — servido por Spring Boot
-                .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/ws/**").permitAll()
+                .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/ws/**","/api/files/**").permitAll()
                 // Públicos — no requieren token
                 .requestMatchers("/api/users/register").permitAll()
                 .requestMatchers("/api/users/login").permitAll()

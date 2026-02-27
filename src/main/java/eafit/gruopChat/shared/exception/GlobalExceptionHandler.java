@@ -12,7 +12,11 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import eafit.gruopChat.file.exception.FileNotFoundException;
+import eafit.gruopChat.file.exception.FileTooLargeException;
+import eafit.gruopChat.file.exception.InvalidFileException;
 import eafit.gruopChat.group.exception.AlreadyMemberException;
 import eafit.gruopChat.group.exception.ChannelNotFoundException;
 import eafit.gruopChat.group.exception.DuplicateChannelNameException;
@@ -24,6 +28,7 @@ import eafit.gruopChat.user.exception.EmailAlreadyExistsException;
 import eafit.gruopChat.user.exception.InvalidCredentialsException;
 import eafit.gruopChat.user.exception.UserDisabledException;
 import eafit.gruopChat.user.exception.UserNotFoundException;
+
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -48,6 +53,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleInvitationNotFound(InvitationNotFoundException ex) {
         return buildError(HttpStatus.NOT_FOUND, ex.getMessage());
     }
+    
+    @ExceptionHandler(FileNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleFileNotFound(FileNotFoundException ex) {
+        return buildError(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+        // ---- 413 ----
+    @ExceptionHandler(FileTooLargeException.class)
+    public ResponseEntity<Map<String, Object>> handleFileTooLarge(FileTooLargeException ex) {
+        return buildError(HttpStatus.PAYLOAD_TOO_LARGE, ex.getMessage());
+    }
+
+    // Spring lanza esto cuando el archivo supera spring.servlet.multipart.max-file-size
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        return buildError(HttpStatus.PAYLOAD_TOO_LARGE, "El archivo supera el límite de 10 MB");
+    }
+
 
     // ---- 409 ----
     @ExceptionHandler(EmailAlreadyExistsException.class)
@@ -98,6 +121,12 @@ public class GlobalExceptionHandler {
     }
 
     // ---- 400 ----
+    
+    @ExceptionHandler(InvalidFileException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidFile(InvalidFileException ex) {
+        return buildError(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }   
+    
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> fieldErrors = new HashMap<>();
