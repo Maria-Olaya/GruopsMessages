@@ -15,7 +15,7 @@ import eafit.gruopChat.presence.repository.UserPresenceRepository;
 import eafit.gruopChat.presence.service.PresenceService;
 import eafit.gruopChat.user.model.User;
 import eafit.gruopChat.user.repository.UserRepository;
-
+import eafit.gruopChat.messaging.service.MessageReceiptService;
 @Service
 @Transactional
 public class PresenceServiceImpl implements PresenceService {
@@ -26,20 +26,29 @@ public class PresenceServiceImpl implements PresenceService {
     private final GroupMemberRepository  memberRepository;
     private final UserRepository         userRepository;
     private final SimpMessagingTemplate  messagingTemplate;
+    private final MessageReceiptService receiptService;
 
     public PresenceServiceImpl(UserPresenceRepository presenceRepository,
-                               GroupMemberRepository memberRepository,
-                               UserRepository userRepository,
-                               SimpMessagingTemplate messagingTemplate) {
+                            GroupMemberRepository memberRepository,
+                            UserRepository userRepository,
+                            SimpMessagingTemplate messagingTemplate,
+                            MessageReceiptService receiptService) {
         this.presenceRepository = presenceRepository;
         this.memberRepository   = memberRepository;
         this.userRepository     = userRepository;
         this.messagingTemplate  = messagingTemplate;
+        this.receiptService     = receiptService;
     }
 
     @Override
     public void userConnected(Long userId) {
         onlineUsers.add(userId);
+
+        // Marcar como DELIVERED todos los mensajes SENT en cada grupo del usuario
+        memberRepository.findByUserUserId(userId).forEach(member ->
+            receiptService.markPendingAsDelivered(userId, member.getGroup().getGroupId())
+        );
+
         broadcastPresence(userId, true);
     }
 

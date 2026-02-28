@@ -1,6 +1,7 @@
 // ===================== WEBSOCKET =====================
 let stompClient  = null;
 let currentSub   = null;
+let receiptSub = null; // agregar junto a currentSub al inicio del archivo
 let chatCtx      = null;
 
 function connectWebSocket() {
@@ -50,13 +51,27 @@ async function openGeneralChat() {
   loadHistory('group', state.currentGroup.groupId);
 }
 
+
 async function _openChat(topic, title) {
   if (!stompClient?.connected) { connectWebSocket(); await waitForWS(); }
-  if (currentSub) { currentSub.unsubscribe(); currentSub = null; }
+  if (currentSub)  { currentSub.unsubscribe();  currentSub  = null; }
+  if (receiptSub)  { receiptSub.unsubscribe();  receiptSub  = null; }
+
   currentSub = stompClient.subscribe(topic, frame => {
     const msg = JSON.parse(frame.body);
     appendMessage(msg, true);
   });
+
+  // Suscribirse al topic de receipts del mismo canal/grupo
+  const receiptTopic = topic.startsWith('/topic/channel.')
+    ? `/topic/receipts.channel.${chatCtx.id}`
+    : `/topic/receipts.group.${chatCtx.id}`;
+
+  receiptSub = stompClient.subscribe(receiptTopic, frame => {
+    const receipt = JSON.parse(frame.body);
+    updateMessageStatus(receipt.messageId, receipt.status);
+  });
+
   renderChatUI(title);
 }
 
@@ -306,7 +321,10 @@ function appendMessage(msg, scroll = true) {
     el.innerHTML = `
       ${actionsHtml}
       <div class="msg-body">
-        <div class="msg-meta"><span class="msg-time">${time}</span></div>
+        <div class="msg-meta">
+          <span class="msg-time">${time}</span>
+          <span class="msg-status">${statusIcon(msg.status)}</span>
+        </div>
         <div class="msg-bubble own-bubble${msg.deleted ? ' deleted-bubble' : ''}">
           ${bodyHtml}
         </div>
@@ -335,9 +353,39 @@ function appendMessage(msg, scroll = true) {
   }
 
   if (scroll) scrollBottom();
+
+  // Al agregar un mensaje visible, notificar lectura al servidor
+  if (!isOwn && msg.messageId && stompClient?.connected && chatCtx) {
+    stompClient.send('/app/chat.read', {}, JSON.stringify({
+      messageId: msg.messageId,
+      groupId:   chatCtx.groupId,
+      channelId: chatCtx.type === 'channel' ? chatCtx.id : null
+    }));
+  }
 }
 
 function scrollBottom() {
   const c = document.getElementById('chat-messages');
   if (c) c.scrollTop = c.scrollHeight;
 }
+
+// Actualiza el ícono de status en un mensaje propio
+function updateMessageStatus(messageId, status) {
+  const el = document.querySelector(`.msg-row[data-id="${messageId}"]`);
+  if (!el) return;
+  const tick = el.querySelector('.msg-status');
+  if (!tick) return;
+
+  const icons = {
+    SENT:      '✓',
+    DELIVERED: '✓✓',
+    READ:      '<span style="color:#4fc3f7">✓✓</span>'
+  };
+  tick.innerHTML = icons[status] || '';
+}
+function statusIcon(status) {
+  if (status === 'READ')      return '<span style="color:#4fc3f7">✓✓</span>';
+  if (status === 'DELIVERED') return '✓✓';
+  return '✓'; // SENT o undefined
+}
+

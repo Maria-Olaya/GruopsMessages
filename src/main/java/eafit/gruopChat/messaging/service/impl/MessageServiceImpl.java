@@ -157,7 +157,8 @@ public class MessageServiceImpl implements MessageService {
                 m.isDeleted() ? null : m.getFileName(),
                 m.getSentAt(),
                 m.getEditedAt(),
-                m.isDeleted()
+                m.isDeleted(),
+                m.getStatus()       // <- único cambio
         );
     }
 }

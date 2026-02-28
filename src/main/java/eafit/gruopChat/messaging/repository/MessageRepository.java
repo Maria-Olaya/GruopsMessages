@@ -34,4 +34,11 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Modifying
     @Query("DELETE FROM Message m WHERE m.group.groupId = :groupId")
     void deleteByGroupId(@Param("groupId") Long groupId);
+
+    // Para marcar como DELIVERED al conectarse — solo los que siguen en SENT
+    @Query("SELECT m FROM Message m WHERE m.group.groupId = :groupId AND m.status = :status")
+    List<Message> findByGroupGroupIdAndStatus(
+        @Param("groupId") Long groupId,
+        @Param("status") eafit.gruopChat.shared.enums.MessageStatus status
+    );
 }

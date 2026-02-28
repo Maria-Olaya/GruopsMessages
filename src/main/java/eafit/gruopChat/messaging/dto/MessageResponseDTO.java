@@ -2,6 +2,7 @@ package eafit.gruopChat.messaging.dto;
 
 import java.time.LocalDateTime;
 import eafit.gruopChat.shared.enums.MessageType;
+import eafit.gruopChat.shared.enums.MessageStatus;
 
 // DTO que el servidor envía al frontend (via WebSocket y via REST)
 public record MessageResponseDTO(
@@ -16,5 +17,6 @@ public record MessageResponseDTO(
         String fileName,       // null si es texto
         LocalDateTime sentAt,
         LocalDateTime editedAt,
-        boolean deleted
+        boolean deleted,
+        MessageStatus status   // SENT | DELIVERED | READ
 ) {}

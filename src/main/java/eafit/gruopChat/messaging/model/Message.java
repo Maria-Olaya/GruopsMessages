@@ -6,6 +6,7 @@ import eafit.gruopChat.shared.enums.MessageType;
 import eafit.gruopChat.user.model.User;
 import eafit.gruopChat.group.model.Group;
 import eafit.gruopChat.group.model.Channel;
+import eafit.gruopChat.shared.enums.MessageStatus;
 import jakarta.persistence.*;
 
 @Entity
@@ -56,6 +57,10 @@ public class Message {
     @Column(nullable = false)
     private boolean deleted = false;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private MessageStatus status = MessageStatus.SENT;
+
     // ===== Getters y Setters =====
 
     public Long getMessageId() { return messageId; }
@@ -90,4 +95,6 @@ public class Message {
 
     public boolean isDeleted() { return deleted; }
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
+    public MessageStatus getStatus() { return status; }
+    public void setStatus(MessageStatus status) { this.status = status; }   
 }

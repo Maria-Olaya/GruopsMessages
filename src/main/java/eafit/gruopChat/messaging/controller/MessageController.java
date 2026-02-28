@@ -14,21 +14,28 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import eafit.gruopChat.messaging.dto.ReceiptEvent;
+import eafit.gruopChat.messaging.dto.ReceiptResponseDTO;
+import eafit.gruopChat.messaging.service.MessageReceiptService;
 
 import eafit.gruopChat.messaging.dto.MessageRequestDTO;
 import eafit.gruopChat.messaging.dto.MessageResponseDTO;
 import eafit.gruopChat.messaging.service.MessageService;
+
 
 @RestController
 public class MessageController {
 
     private final MessageService messageService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final MessageReceiptService receiptService;
 
     public MessageController(MessageService messageService,
-                              SimpMessagingTemplate messagingTemplate) {
+                            SimpMessagingTemplate messagingTemplate,
+                            MessageReceiptService receiptService) {
         this.messageService    = messageService;
         this.messagingTemplate = messagingTemplate;
+        this.receiptService    = receiptService;
     }
 
     // ===================== WEBSOCKET =====================
@@ -51,6 +58,24 @@ public class MessageController {
             // Mensaje de grupo general: /topic/group.{groupId}
             messagingTemplate.convertAndSend(
                 "/topic/group." + saved.groupId(), saved);
+        }
+    }
+
+    // El frontend hace: stompClient.send("/app/chat.read", {}, JSON.stringify(receiptEvent))
+    // cuando el usuario ve un mensaje en pantalla
+    @MessageMapping("/chat.read")
+    public void markAsRead(@Payload ReceiptEvent event, Principal principal) {
+        Long userId = Long.valueOf(principal.getName());
+
+        ReceiptResponseDTO receipt = receiptService.markAsRead(userId, event);
+
+        // Broadcast del nuevo status a todos en el mismo topic
+        if (receipt.channelId() != null) {
+            messagingTemplate.convertAndSend(
+                "/topic/receipts.channel." + receipt.channelId(), receipt);
+        } else {
+            messagingTemplate.convertAndSend(
+                "/topic/receipts.group." + receipt.groupId(), receipt);
         }
     }
 
