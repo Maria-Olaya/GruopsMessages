@@ -14,12 +14,12 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import eafit.gruopChat.messaging.dto.ReceiptEvent;
-import eafit.gruopChat.messaging.dto.ReceiptResponseDTO;
-import eafit.gruopChat.messaging.service.MessageReceiptService;
 
 import eafit.gruopChat.messaging.dto.MessageRequestDTO;
 import eafit.gruopChat.messaging.dto.MessageResponseDTO;
+import eafit.gruopChat.messaging.dto.ReceiptEvent;
+import eafit.gruopChat.messaging.dto.ReceiptResponseDTO;
+import eafit.gruopChat.messaging.service.MessageReceiptService;
 import eafit.gruopChat.messaging.service.MessageService;
 
 
@@ -40,36 +40,27 @@ public class MessageController {
 
     // ===================== WEBSOCKET =====================
 
-    // El frontend hace: stompClient.send("/app/chat.send", {}, JSON.stringify(request))
-    // El servidor guarda y hace broadcast al topic correspondiente
     @MessageMapping("/chat.send")
     public void sendMessage(@Payload MessageRequestDTO request, Principal principal) {
-        // Principal.getName() retorna el userId (lo seteamos en JwtChannelInterceptor)
         Long senderId = Long.valueOf(principal.getName());
 
         MessageResponseDTO saved = messageService.sendMessage(senderId, request);
 
-        // Broadcast al destino correcto
         if (saved.channelId() != null) {
-            // Mensaje de canal: /topic/channel.{channelId}
             messagingTemplate.convertAndSend(
                 "/topic/channel." + saved.channelId(), saved);
         } else {
-            // Mensaje de grupo general: /topic/group.{groupId}
             messagingTemplate.convertAndSend(
                 "/topic/group." + saved.groupId(), saved);
         }
     }
 
-    // El frontend hace: stompClient.send("/app/chat.read", {}, JSON.stringify(receiptEvent))
-    // cuando el usuario ve un mensaje en pantalla
     @MessageMapping("/chat.read")
     public void markAsRead(@Payload ReceiptEvent event, Principal principal) {
         Long userId = Long.valueOf(principal.getName());
 
         ReceiptResponseDTO receipt = receiptService.markAsRead(userId, event);
 
-        // Broadcast del nuevo status a todos en el mismo topic
         if (receipt.channelId() != null) {
             messagingTemplate.convertAndSend(
                 "/topic/receipts.channel." + receipt.channelId(), receipt);
@@ -116,5 +107,20 @@ public class MessageController {
             @RequestParam String content) {
         messageService.editMessage(messageId, userId, content);
         return ResponseEntity.noContent().build();
+    }
+
+    // GET /api/messages/channel/{channelId}/files
+    // Devuelve archivos (IMAGE + FILE) del canal, ordenados más reciente primero
+    @GetMapping("/api/messages/channel/{channelId}/files")
+    public ResponseEntity<List<MessageResponseDTO>> getChannelFiles(
+            @PathVariable Long channelId) {
+        return ResponseEntity.ok(messageService.getChannelFiles(channelId));
+    }
+
+
+    @GetMapping("/api/messages/group/{groupId}/files")
+    public ResponseEntity<List<MessageResponseDTO>> getGroupFiles(
+            @PathVariable Long groupId) {
+        return ResponseEntity.ok(messageService.getGroupFiles(groupId));
     }
 }

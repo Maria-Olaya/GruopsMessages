@@ -49,31 +49,25 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public MessageResponseDTO sendMessage(Long senderId, MessageRequestDTO request) {
-        // 1. Validar que el sender existe
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> new UserNotFoundException(senderId));
 
-        // 2. Validar que el grupo existe
         Group group = groupRepository.findById(request.groupId())
                 .orElseThrow(() -> new GroupNotFoundException(request.groupId()));
 
-        // 3. Validar que el sender es miembro del grupo
         if (!memberRepository.existsByGroupGroupIdAndUserUserId(request.groupId(), senderId)) {
             throw new NotMemberException(senderId, request.groupId());
         }
 
-        // 4. Resolver canal (opcional)
         Channel channel = null;
         if (request.channelId() != null) {
             channel = channelRepository.findById(request.channelId())
                     .orElseThrow(() -> new RuntimeException("Canal no encontrado: " + request.channelId()));
-            // Verificar que el canal pertenece al grupo
             if (!channel.getGroup().getGroupId().equals(request.groupId())) {
                 throw new IllegalArgumentException("El canal no pertenece al grupo");
             }
         }
 
-        // 5. Validar contenido según tipo
         if (request.type() == MessageType.TEXT && (request.content() == null || request.content().isBlank())) {
             throw new IllegalArgumentException("El contenido no puede estar vacío");
         }
@@ -82,7 +76,6 @@ public class MessageServiceImpl implements MessageService {
             throw new IllegalArgumentException("La URL del archivo es requerida");
         }
 
-        // 6. Crear y guardar
         Message message = new Message();
         message.setSender(sender);
         message.setGroup(group);
@@ -123,7 +116,7 @@ public class MessageServiceImpl implements MessageService {
         message.setDeleted(true);
     }
 
-    @Override 
+    @Override
     public void editMessage(Long messageId, Long requestingUserId, String newContent) {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> new RuntimeException("Mensaje no encontrado: " + messageId));
@@ -142,6 +135,20 @@ public class MessageServiceImpl implements MessageService {
         message.setEditedAt(LocalDateTime.now());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<MessageResponseDTO> getChannelFiles(Long channelId) {
+        return messageRepository.findFilesByChannelId(channelId)
+                .stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MessageResponseDTO> getGroupFiles(Long groupId) {
+        return messageRepository.findFilesByGroupId(groupId)
+                .stream().map(this::toDTO).collect(Collectors.toList());
+    }
 
     // ===== Mapper =====
     private MessageResponseDTO toDTO(Message m) {
@@ -158,7 +165,7 @@ public class MessageServiceImpl implements MessageService {
                 m.getSentAt(),
                 m.getEditedAt(),
                 m.isDeleted(),
-                m.getStatus()       // <- único cambio
+                m.getStatus()
         );
     }
 }

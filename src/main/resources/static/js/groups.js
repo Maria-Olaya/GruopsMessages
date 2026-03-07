@@ -51,6 +51,9 @@ function filterGroups(q) {
 
 // ===================== SELECT GROUP =====================
 async function selectGroup(groupId) {
+  // Limpiar panel de archivos del grupo anterior
+  if (typeof clearGroupFiles === 'function') clearGroupFiles();
+
   const { ok, data } = await apiCall('GET', `/groups/${groupId}`);
   if (!ok) return toast('Error al cargar el grupo', 'error');
   state.currentGroup = data;
@@ -75,6 +78,9 @@ async function selectGroup(groupId) {
 
   // Load channels + update add-channel button visibility
   await loadChannels();
+
+  // Load files panel
+  if (typeof loadGroupFiles === 'function') loadGroupFiles(groupId);
 
   // Show/hide "add channel" button
   document.getElementById('btn-add-channel').classList.toggle('hidden', state.currentRole !== 'ADMIN');

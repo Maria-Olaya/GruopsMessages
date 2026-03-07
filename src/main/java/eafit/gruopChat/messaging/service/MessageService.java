@@ -16,10 +16,14 @@ public interface MessageService {
     // Historial de mensajes del grupo general (sin canal)
     List<MessageResponseDTO> getGroupMessages(Long groupId, int page, int size);
 
-    
     // Eliminar mensaje (soft delete — solo el autor puede hacerlo)
     void deleteMessage(Long messageId, Long requestingUserId);
 
     // Editar mensaje (solo el autor, solo mensajes no eliminados)
     void editMessage(Long messageId, Long requestingUserId, String newContent);
+
+    // Archivos (IMAGE + FILE) de un canal específico, ordenados más reciente primero
+    List<MessageResponseDTO> getChannelFiles(Long channelId);
+
+    List<MessageResponseDTO> getGroupFiles(Long groupId);
 }

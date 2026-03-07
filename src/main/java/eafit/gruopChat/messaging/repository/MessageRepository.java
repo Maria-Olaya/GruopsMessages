@@ -25,12 +25,11 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findLatestByChannelId(@Param("channelId") Long channelId, Pageable pageable);
 
     // Borrar físicamente los mensajes de un canal antes de borrar el canal
-    // Sin esto, la FK messages.channel_id viola la constraint al hacer channelRepository.delete()
     @Modifying
     @Query("DELETE FROM Message m WHERE m.channel.channelId = :channelId")
     void deleteByChannelId(@Param("channelId") Long channelId);
-    // Borrar TODOS los mensajes de un grupo (antes de borrar el grupo)
-    // Cubre tanto mensajes de canales como del general (channel IS NULL)
+
+    // Borrar TODOS los mensajes de un grupo
     @Modifying
     @Query("DELETE FROM Message m WHERE m.group.groupId = :groupId")
     void deleteByGroupId(@Param("groupId") Long groupId);
@@ -41,4 +40,19 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
         @Param("groupId") Long groupId,
         @Param("status") eafit.gruopChat.shared.enums.MessageStatus status
     );
+
+    // Archivos (IMAGE + FILE) de un canal específico, ordenados más reciente primero
+    @Query("SELECT m FROM Message m WHERE m.channel.channelId = :channelId " +
+           "AND m.type IN (eafit.gruopChat.shared.enums.MessageType.IMAGE, " +
+           "              eafit.gruopChat.shared.enums.MessageType.FILE) " +
+           "AND m.deleted = false " +
+           "ORDER BY m.sentAt DESC")
+    List<Message> findFilesByChannelId(@Param("channelId") Long channelId);
+
+
+    @Query("SELECT m FROM Message m WHERE m.channel IS NULL AND m.group.groupId = :groupId " +
+       "AND m.type IN (eafit.gruopChat.shared.enums.MessageType.IMAGE, " +
+       "              eafit.gruopChat.shared.enums.MessageType.FILE) " +
+       "AND m.deleted = false ORDER BY m.sentAt DESC")
+    List<Message> findFilesByGroupId(@Param("groupId") Long groupId);
 }
