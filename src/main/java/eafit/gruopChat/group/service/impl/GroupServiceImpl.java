@@ -29,12 +29,15 @@ import eafit.gruopChat.group.repository.GroupInvitationRepository;
 import eafit.gruopChat.group.repository.GroupMemberRepository;
 import eafit.gruopChat.group.repository.GroupRepository;
 import eafit.gruopChat.group.service.GroupService;
+import eafit.gruopChat.messaging.repository.MessageReceiptRepository;
 import eafit.gruopChat.messaging.repository.MessageRepository;
+import eafit.gruopChat.presence.repository.MessageReadRepository;
 import eafit.gruopChat.shared.enums.GroupRole;
 import eafit.gruopChat.shared.enums.InvitationStatus;
 import eafit.gruopChat.user.exception.UserNotFoundException;
 import eafit.gruopChat.user.model.User;
 import eafit.gruopChat.user.repository.UserRepository;
+
 
 @Service
 @Transactional
@@ -46,19 +49,25 @@ public class GroupServiceImpl implements GroupService {
     private final GroupInvitationRepository invitationRepository;
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
+    private final MessageReceiptRepository messageReceiptRepository;
+    private final MessageReadRepository messageReadRepository;
 
     public GroupServiceImpl(GroupRepository groupRepository,
                             GroupMemberRepository memberRepository,
                             ChannelRepository channelRepository,
                             GroupInvitationRepository invitationRepository,
                             UserRepository userRepository,
-                            MessageRepository messageRepository) {
+                            MessageRepository messageRepository,
+                            MessageReceiptRepository messageReceiptRepository,
+                            MessageReadRepository messageReadRepository) {
         this.groupRepository = groupRepository;
         this.memberRepository = memberRepository;
         this.channelRepository = channelRepository;
         this.invitationRepository = invitationRepository;
         this.userRepository = userRepository;
-        this.messageRepository  = messageRepository; 
+        this.messageRepository  = messageRepository;
+        this.messageReceiptRepository = messageReceiptRepository;
+        this.messageReadRepository = messageReadRepository;
     }
 
     // ===================== GRUPOS =====================
@@ -113,8 +122,10 @@ public class GroupServiceImpl implements GroupService {
         if (!group.getCreatedBy().getUserId().equals(requestingUserId)) {
             throw new NotGroupAdminException();
         }
-        messageRepository.deleteByGroupId(groupId); 
-        groupRepository.delete(group);
+        messageReadRepository.deleteByGroupId(groupId);      // hijos primero
+        messageReceiptRepository.deleteByGroupId(groupId);   // hijos primero
+        messageRepository.deleteByGroupId(groupId);          // ahora sí
+        groupRepository.delete(group);                       // cascade hace el resto
     }
 
     // ===================== MIEMBROS =====================
@@ -264,9 +275,10 @@ public class GroupServiceImpl implements GroupService {
                 .orElseThrow(() -> new ChannelNotFoundException(channelId));
         assertAdmin(channel.getGroup().getGroupId(), adminUserId);
         
-        messageRepository.deleteByChannelId(channelId);  // ← línea nueva
-        
-        channelRepository.delete(channel);               // ← esta ya existía
+        messageReadRepository.deleteByChannelId(channelId);
+        messageReceiptRepository.deleteByChannelId(channelId);
+        messageRepository.deleteByChannelId(channelId);
+        channelRepository.delete(channel);              // ← esta ya existía
     }
 
     // ===================== HELPERS =====================
