@@ -25,6 +25,7 @@ import eafit.gruopChat.group.dto.InvitationResponseDTO;
 import eafit.gruopChat.group.service.GroupService;
 import eafit.gruopChat.shared.enums.GroupRole;
 import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/groups")
 public class GroupController {
@@ -69,6 +70,27 @@ public class GroupController {
             @AuthenticationPrincipal Long userId) {
         groupService.deleteGroup(groupId, userId);
         return ResponseEntity.noContent().build();
+    }
+
+    // ================= INVITE LINK =================
+
+    /**
+     * Preview público del grupo (sin auth) — muestra nombre y descripción.
+     * Solo funciona si el grupo es público.
+     */
+    @GetMapping("/invite/{code}")
+    public ResponseEntity<GroupResponseDTO> getGroupByInviteCode(@PathVariable String code) {
+        return ResponseEntity.ok(groupService.getGroupByInviteCode(code));
+    }
+
+    /**
+     * Unirse al grupo usando el código de invitación (requiere auth).
+     */
+    @PostMapping("/invite/{code}/join")
+    public ResponseEntity<GroupResponseDTO> joinByInviteCode(
+            @PathVariable String code,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(groupService.joinByInviteCode(code, userId));
     }
 
     // ================= MIEMBROS =================

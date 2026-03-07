@@ -73,6 +73,8 @@ function _applySession() {
   loadGroups();
   pollInvitations();
   if (typeof initDm === 'function') setTimeout(initDm, 800);
+  // Manejar link de invitación si viene en la URL
+  if (typeof handleInviteCodeOnLoad === 'function') setTimeout(handleInviteCodeOnLoad, 600);
 }
 
 function logout() {

@@ -128,6 +128,40 @@ public class GroupServiceImpl implements GroupService {
         groupRepository.delete(group);                       // cascade hace el resto
     }
 
+
+    // ===================== INVITE CODE =====================
+
+    @Override
+    @Transactional(readOnly = true)
+    public GroupResponseDTO getGroupByInviteCode(String inviteCode) {
+        Group group = groupRepository.findByInviteCode(inviteCode)
+                .orElseThrow(() -> new GroupNotFoundException(-1L));
+        if (group.isPrivate()) {
+            throw new IllegalArgumentException("Este grupo es privado");
+        }
+        return mapGroupToDTO(group);
+    }
+
+    @Override
+    public GroupResponseDTO joinByInviteCode(String inviteCode, Long userId) {
+        Group group = groupRepository.findByInviteCode(inviteCode)
+                .orElseThrow(() -> new GroupNotFoundException(-1L));
+        if (group.isPrivate()) {
+            throw new IllegalArgumentException("Este grupo es privado");
+        }
+        if (memberRepository.existsByGroupGroupIdAndUserUserId(group.getGroupId(), userId)) {
+            // Ya es miembro — devolver el grupo sin error
+            return mapGroupToDTO(group);
+        }
+        User user = findActiveUser(userId);
+        GroupMember member = new GroupMember();
+        member.setGroup(group);
+        member.setUser(user);
+        member.setRole(GroupRole.MEMBER);
+        memberRepository.save(member);
+        return mapGroupToDTO(group);
+    }
+
     // ===================== MIEMBROS =====================
 
     @Override
@@ -312,7 +346,8 @@ public class GroupServiceImpl implements GroupService {
         return new GroupResponseDTO(
                 group.getGroupId(), group.getName(), group.getDescription(),
                 group.getCreatedBy().getUserId(), group.getCreatedBy().getName(),
-                group.isPrivate(), memberCount, channelCount, group.getCreatedAt());
+                group.isPrivate(), memberCount, channelCount, group.getCreatedAt(),
+                group.getInviteCode());
     }
 
     private GroupMemberResponseDTO mapMemberToDTO(GroupMember member) {

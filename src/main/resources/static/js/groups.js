@@ -108,6 +108,13 @@ function renderGroupActions() {
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Invitar
     </button>`;
+    // Botón copiar link solo en grupos públicos
+    if (!state.currentGroup.isPrivate && state.currentGroup.inviteCode) {
+      html += `<button class="header-btn" onclick="copyInviteLink()" title="Copiar enlace de invitación" id="btn-copy-link">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Copiar link
+      </button>`;
+    }
     html += `<button class="header-btn" onclick="openEditGroupModal()" title="Editar grupo">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       Editar
@@ -298,6 +305,56 @@ async function changeMemberRole(userId, newRole) {
   if (!ok) return toast(data?.message || 'Error al cambiar rol', 'error');
   toast(`Rol cambiado a ${newRole}`, 'success');
   await loadMembers();
+}
+
+// ===================== INVITE LINK =====================
+function copyInviteLink() {
+  const code = state.currentGroup?.inviteCode;
+  if (!code) return toast('Este grupo no tiene enlace de invitación', 'warn');
+  const url = window.location.origin + '/?invite=' + code;
+  navigator.clipboard.writeText(url).then(() => {
+    toast('Enlace copiado al portapapeles', 'success');
+    const btn = document.getElementById('btn-copy-link');
+    if (btn) {
+      const original = btn.innerHTML;
+      btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> ¡Copiado!';
+      btn.style.color = 'var(--green)';
+      setTimeout(() => { btn.innerHTML = original; btn.style.color = ''; }, 2000);
+    }
+  }).catch(() => {
+    // Fallback para navegadores sin clipboard API
+    const el = document.createElement('textarea');
+    el.value = window.location.origin + '/?invite=' + code;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+    toast('Enlace copiado al portapapeles', 'success');
+  });
+}
+
+async function handleInviteCodeOnLoad() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('invite');
+  if (!code || !state.token) return;
+
+  // Limpiar la URL sin recargar
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  // Obtener info del grupo
+  const { ok, data } = await apiCall('GET', '/groups/invite/' + code);
+  if (!ok) return toast('Enlace de invitación inválido o expirado', 'error');
+
+  // Confirmar unirse
+  const join = confirm('¿Unirte al grupo "' + data.name + '"?' + (data.description ? '\n' + data.description : ''));
+  if (!join) return;
+
+  const { ok: jok, data: jdata } = await apiCall('POST', '/groups/invite/' + code + '/join');
+  if (!jok) return toast(jdata?.message || 'Error al unirse al grupo', 'error');
+
+  toast('¡Te uniste a "' + jdata.name + '"!', 'success');
+  await loadGroups();
+  selectGroup(jdata.groupId);
 }
 
 // ===================== INVITE =====================

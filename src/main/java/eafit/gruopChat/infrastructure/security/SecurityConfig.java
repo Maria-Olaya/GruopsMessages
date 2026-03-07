@@ -29,6 +29,8 @@ public class SecurityConfig {
                 // Frontend — servido por Spring Boot
                 .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/ws/**","/api/files/**").permitAll()
                 // Públicos — no requieren token
+                // Invite link preview — público para mostrar info del grupo sin login
+                .requestMatchers("/api/groups/invite/*").permitAll()
                 .requestMatchers("/api/users/register").permitAll()
                 .requestMatchers("/api/users/login").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()

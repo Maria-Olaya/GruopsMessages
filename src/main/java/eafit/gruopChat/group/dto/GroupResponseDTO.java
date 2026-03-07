@@ -11,5 +11,6 @@ public record GroupResponseDTO(
         boolean isPrivate,
         int memberCount,
         int channelCount,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String inviteCode
 ) {}

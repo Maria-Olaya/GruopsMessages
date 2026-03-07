@@ -2,7 +2,12 @@ package eafit.gruopChat.group.service;
 
 import java.util.List;
 
-import eafit.gruopChat.group.dto.*;
+import eafit.gruopChat.group.dto.ChannelRequestDTO;
+import eafit.gruopChat.group.dto.ChannelResponseDTO;
+import eafit.gruopChat.group.dto.GroupMemberResponseDTO;
+import eafit.gruopChat.group.dto.GroupRequestDTO;
+import eafit.gruopChat.group.dto.GroupResponseDTO;
+import eafit.gruopChat.group.dto.InvitationResponseDTO;
 import eafit.gruopChat.shared.enums.GroupRole;
 
 public interface GroupService {
@@ -13,6 +18,10 @@ public interface GroupService {
     List<GroupResponseDTO> getGroupsByMember(Long userId);
     GroupResponseDTO updateGroup(Long groupId, Long requestingUserId, GroupRequestDTO request);
     void deleteGroup(Long groupId, Long requestingUserId);
+
+    // ===== LINK DE INVITACIÓN =====
+    GroupResponseDTO getGroupByInviteCode(String inviteCode);
+    GroupResponseDTO joinByInviteCode(String inviteCode, Long userId);
 
     // ===== MIEMBROS =====
     List<GroupMemberResponseDTO> getMembers(Long groupId);
