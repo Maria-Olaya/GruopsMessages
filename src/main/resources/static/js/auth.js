@@ -72,6 +72,7 @@ function _applySession() {
   connectWebSocket();
   loadGroups();
   pollInvitations();
+  if (typeof initDm === 'function') setTimeout(initDm, 800);
 }
 
 function logout() {
@@ -91,6 +92,9 @@ function logout() {
   document.getElementById('welcome-state').classList.remove('hidden');
   document.getElementById('groups-list').innerHTML = '';
   document.getElementById('invitations-list').innerHTML = '';
+  document.getElementById('dm-list')?.innerHTML && (document.getElementById('dm-list').innerHTML = '');
+  document.getElementById('dm-view')?.classList.add('hidden');
+  if (typeof dm !== 'undefined') { dm.conversations = []; dm.current = null; }
   document.getElementById('login-email').value = '';
   document.getElementById('login-pass').value  = '';
   hideAuthError();

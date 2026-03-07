@@ -74,6 +74,9 @@
         <span class="sidebar-title">GroupsApp</span>
       </div>
       <div class="sidebar-actions">
+        <button class="icon-btn" title="Nuevo mensaje directo" onclick="openModal('modal-new-dm')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </button>
         <button class="icon-btn" title="Invitaciones" onclick="showPanel('invitations')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span id="inv-badge" class="badge hidden">0</span>
@@ -91,6 +94,7 @@
 
     <nav class="sidebar-nav">
       <button class="nav-pill active" id="nav-groups" onclick="showPanel('groups')">Grupos</button>
+      <button class="nav-pill" id="nav-dm" onclick="showPanel('dm')">Mensajes</button>
       <button class="nav-pill" id="nav-invitations" onclick="showPanel('invitations')">Invitaciones</button>
     </nav>
 
@@ -99,8 +103,18 @@
     </div>
 
     <div class="panel-invitations sidebar-scroll hidden" id="panel-invitations">
+      <!-- Solicitudes de DM — inyectadas por dm.js -->
+      <div id="dm-requests-section"></div>
+      <!-- Solicitudes de grupo -->
       <div id="invitations-list"></div>
     </div>
+
+    <!-- Panel DM -->
+    <div class="panel-dm sidebar-scroll hidden" id="panel-dm">
+      <div id="dm-list"></div>
+    </div>
+
+    <!-- Sección DM dentro de invitaciones (se inyecta por JS) -->
 
     <div class="sidebar-user">
       <div class="user-avatar-wrap">
@@ -182,10 +196,45 @@
         </div>
       </div>
     </div>
+    <!-- Vista DM -->
+    <div class="group-view hidden" id="dm-view">
+      <header class="group-header">
+        <div class="group-avatar-lg" id="dm-header-avatar">?</div>
+        <div class="group-header-info">
+          <div class="group-header-name" id="dm-header-name">—</div>
+          <div class="group-header-meta" id="dm-header-meta">—</div>
+        </div>
+      </header>
+      <div id="dm-chat-body" style="flex:1;display:flex;flex-direction:column;overflow:hidden"></div>
+    </div>
+
   </main>
 </div>
 
 <!-- ==================== MODALES ==================== -->
+
+<!-- Nuevo DM -->
+<div class="modal-overlay hidden" id="modal-new-dm">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3 class="modal-title">Nuevo mensaje directo</h3>
+      <button class="modal-close" onclick="closeModal('modal-new-dm')">×</button>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Email del usuario</label>
+      <input type="email" id="dm-target-email" class="field-input"
+             placeholder="usuario@email.com"
+             onkeydown="if(event.key==='Enter')startDm()">
+    </div>
+    <p style="font-size:11px;color:var(--text3);margin-bottom:4px;line-height:1.5">
+      Grupos en común → chat inmediato.<br>Sin grupos en común → solicitud de contacto.
+    </p>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modal-new-dm')">Cancelar</button>
+      <button class="btn-primary" onclick="startDm()">Enviar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Crear grupo -->
 <div class="modal-overlay hidden" id="modal-create-group">
@@ -400,6 +449,7 @@
 <script src="/js/groups.js"></script>
 <script src="/js/channels.js"></script>
 <script src="/js/messaging.js"></script>
+<script src="/js/dm.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

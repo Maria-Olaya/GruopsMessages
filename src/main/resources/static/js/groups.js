@@ -1,10 +1,23 @@
 // ===================== SIDEBAR PANELS =====================
 function showPanel(panel) {
-  document.getElementById('panel-groups').classList.toggle('hidden', panel !== 'groups');
-  document.getElementById('panel-invitations').classList.toggle('hidden', panel !== 'invitations');
-  document.getElementById('nav-groups').classList.toggle('active', panel === 'groups');
-  document.getElementById('nav-invitations').classList.toggle('active', panel !== 'groups');
-  if (panel === 'invitations') loadInvitations();
+  ['groups', 'invitations', 'dm'].forEach(p => {
+    document.getElementById(`panel-${p}`)?.classList.toggle('hidden', panel !== p);
+    document.getElementById(`nav-${p}`)?.classList.toggle('active', panel === p);
+  });
+  if (panel === 'invitations') {
+    loadInvitations();
+    if (typeof loadDmRequestsSection === 'function') loadDmRequestsSection();
+  }
+  if (panel === 'dm') {
+    if (typeof loadDmList === 'function') loadDmList();
+  }
+  // Al salir de la vista DM, ocultar el panel DM principal
+  if (panel !== 'dm') {
+    document.getElementById('dm-view')?.classList.add('hidden');
+    if (!state.currentGroup) {
+      document.getElementById('welcome-state')?.classList.remove('hidden');
+    }
+  }
 }
 
 // ===================== GROUPS LIST =====================
@@ -315,8 +328,11 @@ async function loadInvitations() {
   const list = Array.isArray(data) ? data : [];
 
   const badge = document.getElementById('inv-badge');
-  if (list.length > 0) {
-    badge.textContent = list.length;
+  badge.dataset.groupCount = list.length;
+  const dmCount = parseInt(badge.dataset.dmCount || '0');
+  const total = list.length + dmCount;
+  if (total > 0) {
+    badge.textContent = total;
     badge.classList.remove('hidden');
   } else {
     badge.classList.add('hidden');
